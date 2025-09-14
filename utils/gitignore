@@ -1,0 +1,22 @@
+# Données / artefacts à ne pas pousser
+data/
+data_processed/
+models/
+mlruns/
+mlruns.db
+mlartifacts/
+
+# Fichiers volumineux
+*.csv
+*.pkl
+*.joblib
+*.parquet
+
+# Rapports HTML générés
+reports/*.html
+
+# Divers
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+.env
