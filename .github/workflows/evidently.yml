@@ -9,6 +9,7 @@ on:
 jobs:
   evidently:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -19,8 +20,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: |
-          pip install evidently pandas scikit-learn numpy matplotlib
+        run: pip install -r requirements.txt
 
       - name: Run Evidently
         run: python monitoring/run_evidently.py
@@ -30,4 +30,3 @@ jobs:
         with:
           name: drift-report
           path: monitoring/reports/drift_report.html
-
