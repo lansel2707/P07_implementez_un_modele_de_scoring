@@ -1,4 +1,4 @@
-name: Upload Evidently Report
+name: CI - Evidently Drift Report
 
 on:
   push:
