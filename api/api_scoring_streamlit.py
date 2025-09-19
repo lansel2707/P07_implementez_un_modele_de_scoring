@@ -1,68 +1,64 @@
-# api_scoring_streamlit.py – version projet P8
+# api_scoring_streamlit.py
 import json
 import requests
 import streamlit as st
+import pandas as pd
 
-# URL de ton API FastAPI (à adapter si déployée ailleurs que local)
 BASE_URL = "http://localhost:8000"
 
-# Config de la page
-st.set_page_config(page_title="Scoring Client", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Client Scoring App", page_icon="📊", layout="wide")
+st.title("📊 Application de Scoring Client")
+st.markdown("Entrez les informations principales du client pour obtenir un score de risque.")
 
-# Titre principal
-st.title("📊 Scoring Client – API MLflow Registry")
-st.markdown(
-    "Cette application permet de **renseigner les caractéristiques d’un client** "
-    "et d’obtenir une **prédiction de scoring** via le modèle MLflow exposé en API."
-)
+# =============================
+# Variables importantes (top 8 tirées du notebook)
+# =============================
+important_features = [
+    "montant_en_retard",
+    "nb_previous",
+    "taux_refus",
+    "montant_moyen_pret",
+    "nb_paiements",
+    "retard_moyen",
+    "montant_paiement_moyen",
+    "revenu_annuel"
+]
 
-# Chargement des features disponibles via l’API
-try:
-    resp = requests.get(f"{BASE_URL}/features", timeout=5)
-    resp.raise_for_status()
-    features = resp.json()  # L’API renvoie la liste des features attendues
-except Exception as e:
-    st.error(f"❌ Impossible de récupérer la liste des features : {e}")
-    st.stop()
-
-# Formulaire Streamlit
-st.subheader("📝 Remplir les caractéristiques du client")
+# =============================
+# Formulaire utilisateur
+# =============================
 with st.form("scoring_form"):
+    st.subheader("Données principales du client :")
     values = {}
-    for feat in features:
-        values[feat] = st.number_input(
-            feat, value=0.0, step=1.0, format="%.3f"
-        )
+    for feat in important_features:
+        values[feat] = st.number_input(feat, value=0.0, step=0.01, format="%.2f")
 
     submitted = st.form_submit_button("🚀 Lancer le scoring")
 
-# Envoi de la requête à l’API
+# =============================
+# Requête API
+# =============================
 if submitted:
     payload = {"data": values}
     try:
-        r = requests.post(f"{BASE_URL}/predict", json=payload, timeout=10)
+        r = requests.post(f"{BASE_URL}/predict", json=payload, timeout=15)
         r.raise_for_status()
-        out = r.json()
+        result = r.json()
 
-        st.success("✅ Prédiction réalisée avec succès !")
+        # Récupération du score
+        score = result.get("score", None)
 
-        # Affichage des résultats
-        score = out.get("score", None)
-        decision = out.get("decision", None)
+        if score is not None:
+            st.success("✅ Prédiction réalisée avec succès !")
+            st.metric("Score du client", f"{score:.2f}")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Score du client", f"{score:.3f}")
-        with col2:
-            if decision == 1:
-                st.success("🟢 Accordé")
-            else:
-                st.error("🔴 Refusé")
-
-        # Debug JSON complet (optionnel)
-        with st.expander("Voir la réponse brute JSON"):
-            st.json(out)
+            # Si l’API renvoie aussi l’importance des features
+            if "feature_importance" in result:
+                fi = pd.DataFrame(result["feature_importance"])
+                st.subheader("🔎 Importance des variables dans le modèle")
+                st.bar_chart(fi.set_index("feature"))
+        else:
+            st.warning("⚠️ Pas de score reçu depuis l'API.")
 
     except Exception as e:
-        st.error(f"❌ Erreur lors de l’appel à l’API : {e}")
-
+        st.error(f"Erreur lors de l'appel à l'API : {e}")
