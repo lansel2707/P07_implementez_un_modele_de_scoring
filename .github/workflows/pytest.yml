@@ -20,10 +20,11 @@ jobs:
         run: pip install -r requirements-ci.txt
 
       - name: Run tests with HTML report
-        run: pytest tests --maxfail=1 --disable-warnings -q --html=monitoring/reports/pytest_report.html --self-contained-html
+        run: pytest tests/ --maxfail=1 --disable-warnings -q --html=monitoring/reports/pytest_report.html --self-contained-html
 
       - name: Upload pytest report
         uses: actions/upload-artifact@v4
         with:
           name: pytest-report
           path: monitoring/reports/pytest_report.html
+
