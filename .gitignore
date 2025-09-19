@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb~
+
+# Environnements virtuels
+.venv/
+venv/
+.env
+
+# Données volumineuses
+data/*.csv
+data_processed/*.csv
+*.pkl
+
+# Logs et rapports générés
+logs/
+
+
+# MLflow artefacts
+mlruns/
+mlartifacts/
+
+# Autres fichiers inutiles
+.DS_Store
+*.log
