@@ -8,26 +8,33 @@ __pycache__/
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb~
+*.ipynb_checkpoints
 
 # Environnements virtuels
 .venv/
 venv/
 .env
 
-# Données volumineuses
+# Données brutes et transformées
 data/*.csv
 data_processed/*.csv
+notebooks/exports/*.csv
+
+# Modèles et artefacts
 *.pkl
-
-# Logs et rapports générés
-logs/
-
-
-# MLflow artefacts
 mlruns/
 mlartifacts/
 
-# Autres fichiers inutiles
+# Rapports générés
+*.html
+logs/
+
+# Fichiers inutiles
 .DS_Store
 *.log
+uv.lock
+requirements-ci.txt
+pyproject.toml
+input_example_swagger.json
+tests/test_sanity.py
+
