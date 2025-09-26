@@ -5,31 +5,14 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  upload-pytest:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload pytest report
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload pytest HTML report
+        uses: actions/upload-artifact@v4
         with:
+          name: pytest-report
           path: monitoring/reports/pytest_report.html
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
