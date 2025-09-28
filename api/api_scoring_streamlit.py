@@ -1,128 +1,167 @@
 import streamlit as st
+import requests
 import pandas as pd
-import matplotlib.pyplot as plt
-import joblib
 import os
+import matplotlib.pyplot as plt
 
-# ===============================
+# =========================
 # CONFIG APP
-# ===============================
+# =========================
 st.set_page_config(page_title="Application de Scoring", layout="wide")
+BASE_URL = "http://localhost:8000"  # API FastAPI locale
 
-# ===============================
-# CHARGEMENT DU MODÈLE CALIBRÉ
-# ===============================
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "gbc_all_final_calibrated.pkl")
-MODEL_PATH = os.path.abspath(MODEL_PATH)
-
-model = joblib.load(MODEL_PATH)
-
-# ===============================
-# FEATURES PRINCIPALES À SAISIR
-# ===============================
+# =========================
+# Features principales à saisir par l’utilisateur
+# =========================
 FEATURE_LABELS = {
     "AMT_INCOME_TOTAL": "Revenu total du client",
     "AMT_CREDIT": "Montant du crédit",
     "AMT_ANNUITY": "Annuité du prêt",
-    "DAYS_BIRTH": "Âge du client (en années)",
-    "DAYS_EMPLOYED": "Ancienneté professionnelle (en années)",
+    "DAYS_BIRTH": "Âge du client (en jours)",
+    "DAYS_EMPLOYED": "Ancienneté professionnelle (en jours)",
     "montant_en_retard": "Montant total en retard",
     "nb_paiements": "Nombre de paiements effectués",
     "taux_refus": "Taux de refus antérieurs"
 }
+
 IMPORTANT_FEATURES = list(FEATURE_LABELS.keys())
 
-# ===============================
-# IMPORT DES FICHIERS EXPORTÉS
-# ===============================
-EXPORT_DIR = "notebooks/exports"
-feature_importance_path = os.path.join(EXPORT_DIR, "feature_importance_top20.csv")
-metrics_model_path = os.path.join(EXPORT_DIR, "metrics_model_final.csv")
-seuils_cout_path = os.path.join(EXPORT_DIR, "seuils_cout_gb.csv")
+# =========================
+# Toutes les features attendues par le modèle
+# =========================
+ALL_FEATURES = [
+    "CNT_CHILDREN","AMT_INCOME_TOTAL","AMT_CREDIT","AMT_ANNUITY","AMT_GOODS_PRICE",
+    "REGION_POPULATION_RELATIVE","DAYS_BIRTH","DAYS_EMPLOYED","DAYS_REGISTRATION","DAYS_ID_PUBLISH",
+    "OWN_CAR_AGE","FLAG_MOBIL","FLAG_EMP_PHONE","FLAG_WORK_PHONE","FLAG_CONT_MOBILE","FLAG_PHONE","FLAG_EMAIL",
+    "CNT_FAM_MEMBERS","REGION_RATING_CLIENT","REGION_RATING_CLIENT_W_CITY","HOUR_APPR_PROCESS_START",
+    "REG_REGION_NOT_LIVE_REGION","REG_REGION_NOT_WORK_REGION","LIVE_REGION_NOT_WORK_REGION",
+    "REG_CITY_NOT_LIVE_CITY","REG_CITY_NOT_WORK_CITY","LIVE_CITY_NOT_WORK_CITY",
+    "EXT_SOURCE_1","EXT_SOURCE_2","EXT_SOURCE_3",
+    "APARTMENTS_AVG","BASEMENTAREA_AVG","YEARS_BEGINEXPLUATATION_AVG","YEARS_BUILD_AVG",
+    "COMMONAREA_AVG","ELEVATORS_AVG","ENTRANCES_AVG","FLOORSMAX_AVG","FLOORSMIN_AVG","LANDAREA_AVG",
+    "LIVINGAPARTMENTS_AVG","LIVINGAREA_AVG","NONLIVINGAPARTMENTS_AVG","NONLIVINGAREA_AVG",
+    "APARTMENTS_MODE","BASEMENTAREA_MODE","YEARS_BEGINEXPLUATATION_MODE","YEARS_BUILD_MODE",
+    "COMMONAREA_MODE","ELEVATORS_MODE","ENTRANCES_MODE","FLOORSMAX_MODE","FLOORSMIN_MODE","LANDAREA_MODE",
+    "LIVINGAPARTMENTS_MODE","LIVINGAREA_MODE","NONLIVINGAPARTMENTS_MODE","NONLIVINGAREA_MODE",
+    "APARTMENTS_MEDI","BASEMENTAREA_MEDI","YEARS_BEGINEXPLUATATION_MEDI","YEARS_BUILD_MEDI",
+    "COMMONAREA_MEDI","ELEVATORS_MEDI","ENTRANCES_MEDI","FLOORSMAX_MEDI","FLOORSMIN_MEDI","LANDAREA_MEDI",
+    "LIVINGAPARTMENTS_MEDI","LIVINGAREA_MEDI","NONLIVINGAPARTMENTS_MEDI","NONLIVINGAREA_MEDI","TOTALAREA_MODE",
+    "OBS_30_CNT_SOCIAL_CIRCLE","DEF_30_CNT_SOCIAL_CIRCLE","OBS_60_CNT_SOCIAL_CIRCLE","DEF_60_CNT_SOCIAL_CIRCLE",
+    "DAYS_LAST_PHONE_CHANGE","FLAG_DOCUMENT_2","FLAG_DOCUMENT_3","FLAG_DOCUMENT_4","FLAG_DOCUMENT_5",
+    "FLAG_DOCUMENT_6","FLAG_DOCUMENT_7","FLAG_DOCUMENT_8","FLAG_DOCUMENT_9","FLAG_DOCUMENT_10","FLAG_DOCUMENT_11",
+    "FLAG_DOCUMENT_12","FLAG_DOCUMENT_13","FLAG_DOCUMENT_14","FLAG_DOCUMENT_15","FLAG_DOCUMENT_16","FLAG_DOCUMENT_17",
+    "FLAG_DOCUMENT_18","FLAG_DOCUMENT_19","FLAG_DOCUMENT_20","FLAG_DOCUMENT_21",
+    "AMT_REQ_CREDIT_BUREAU_HOUR","AMT_REQ_CREDIT_BUREAU_DAY","AMT_REQ_CREDIT_BUREAU_WEEK",
+    "AMT_REQ_CREDIT_BUREAU_MON","AMT_REQ_CREDIT_BUREAU_QRT","AMT_REQ_CREDIT_BUREAU_YEAR",
+    "nb_bureau_credit","montant_total_credit_bureau","montant_credit_moyen_bureau",
+    "montant_en_retard","nb_previous","taux_refus","montant_moyen_pret","nb_paiements",
+    "retard_moyen","montant_paiement_moyen"
+]
 
-df_importance = pd.read_csv(feature_importance_path) if os.path.exists(feature_importance_path) else None
-df_metrics = pd.read_csv(metrics_model_path) if os.path.exists(metrics_model_path) else None
-df_seuils = pd.read_csv(seuils_cout_path) if os.path.exists(seuils_cout_path) else None
-
-# ===============================
+# =========================
 # MENU
-# ===============================
+# =========================
 menu = st.sidebar.radio("Navigation", [
-    "👤 Scoring Client",
+    "🧑‍💻 Scoring Client",
     "📊 Feature Importance",
     "📑 Dashboard métier",
-    "🔍 Drift (Evidently)"
+    "🔎 Drift (Evidently)"
 ])
 
-# ===============================
-# PAGE SCORING CLIENT
-# ===============================
-if menu == "👤 Scoring Client":
-    st.title("👤 Application de Scoring Client")
+# =========================
+# PAGE 1 : Scoring
+# =========================
+if menu == "🧑‍💻 Scoring Client":
+    st.title("👩‍💼 Application de Scoring Client")
+    st.write("Entrez les informations principales du client pour obtenir un score de risque.")
 
-    # Inputs utilisateur
-    inputs = {}
-    for feature, label in FEATURE_LABELS.items():
-        if "années" in label:
-            val = st.number_input(label, min_value=0, step=1)
-            if feature == "DAYS_BIRTH":
-                inputs[feature] = -val * 365   # âge en années → jours négatifs
-            elif feature == "DAYS_EMPLOYED":
-                inputs[feature] = -val * 365   # ancienneté en années → jours négatifs
-        else:
-            val = st.number_input(label, min_value=0.0, step=100.0)
-            inputs[feature] = val
+    with st.form("form_scoring"):
+        cols = st.columns(2)
+        user_inputs = {}
+        for i, (feat, label) in enumerate(FEATURE_LABELS.items()):
+            with cols[i % 2]:
+                user_inputs[feat] = st.number_input(label, value=0.0, step=1.0, format="%.2f")
+        submitted = st.form_submit_button("🚀 Lancer le scoring")
 
-    if st.button("🚀 Lancer le scoring"):
-        # DataFrame au bon format
-        X_input = pd.DataFrame([inputs])
+    if submitted:
+        payload = {"data": {feat: 0 for feat in ALL_FEATURES}}
+        for feat, value in user_inputs.items():
+            payload["data"][feat] = value
 
-        # Prédiction avec le modèle calibré
-        proba = model.predict_proba(X_input)[0, 1]
-        prediction = int(proba > 0.5)
 
-        st.success("✅ Résultat du scoring")
-        st.metric("Probabilité d'être mauvais payeur", f"{proba:.2%}")
-        st.write("Prédiction :", "❌ Risqué" if prediction == 1 else "✔️ Fiable")
-
-# ===============================
-# PAGE FEATURE IMPORTANCE
-# ===============================
+        try:
+            response = requests.post(f"{BASE_URL}/predict", json=payload)
+            if response.status_code == 200:
+                result = response.json()
+                st.success("✅ Résultat reçu depuis l'API")
+                st.json(result)
+            else:
+                st.error(f"❌ Erreur API {response.status_code} : {response.text}")
+        except Exception as e:
+            st.error(f"❌ Impossible d'appeler l'API : {e}")
+# =========================
+# PAGE 2 : Feature Importance
+# =========================
 elif menu == "📊 Feature Importance":
+    from pathlib import Path
+
     st.title("📊 Importance des variables")
+    st.write("Affichage des importances calculées du modèle (Top 20).")
 
-    if df_importance is not None:
-        df_sorted = df_importance.sort_values(by="importance", ascending=False)
-        st.bar_chart(df_sorted.set_index("feature"))
-        st.dataframe(df_sorted)
+    # On remonte à la racine du projet puis on pointe vers notebooks/exports
+    base_dir = Path(__file__).resolve().parent.parent
+    path_importances = base_dir / "notebooks" / "exports" / "feature_importance_top20.csv"
+
+    if path_importances.exists():
+        df_importances = pd.read_csv(path_importances)
+
+        # Harmonisation colonnes
+        df_importances.columns = [c.lower() for c in df_importances.columns]
+
+        # Trie et affichage
+        df_top = df_importances.sort_values("importance", ascending=False).head(20)
+        st.bar_chart(df_top.set_index("feature")["importance"])
+        st.dataframe(df_top, use_container_width=True)
     else:
-        st.warning("Aucune donnée d’importance disponible.")
+        st.warning(f"⚠️ Fichier des importances non trouvé : {path_importances}")
 
-# ===============================
-# PAGE DASHBOARD MÉTIER
-# ===============================
+# =========================
+# PAGE 3 : Dashboard métier
+# =========================
 elif menu == "📑 Dashboard métier":
     st.title("📑 Dashboard métier")
-    if df_metrics is not None:
-        st.subheader("📈 Metrics du modèle final")
+    st.write("Métriques globales du modèle et analyse des seuils de coûts.")
+
+    metrics_path = os.path.join("notebooks", "exports", "metrics_model_final.csv")
+    seuils_path = os.path.join("notebooks", "exports", "seuils_cout_gb.csv")
+
+    if os.path.exists(metrics_path):
+        df_metrics = pd.read_csv(metrics_path)
+        st.subheader("📊 Metrics du modèle final")
         st.dataframe(df_metrics)
 
-    if df_seuils is not None:
-        st.subheader("⚖️ Optimisation du seuil de décision")
+    if os.path.exists(seuils_path):
+        df_seuils = pd.read_csv(seuils_path)
+        st.subheader("⚖️ Seuils de coûts optimisés")
+
         fig, ax = plt.subplots()
-        ax.plot(df_seuils["Seuil"], df_seuils["Cout_total"], label="Coût total métier")
-        ax.set_xlabel("Seuil")
-        ax.set_ylabel("Coût total (FN*6 + FP*1)")
-        ax.legend()
-        st.pyplot(fig)
+        if "seuil" in df_seuils.columns and "cout_total" in df_seuils.columns:
+            ax.plot(df_seuils["seuil"], df_seuils["cout_total"])
+            ax.set_xlabel("Seuil")
+            ax.set_ylabel("Coût total")
+            ax.set_title("Coût total en fonction du seuil")
+            st.pyplot(fig)
+
+        st.dataframe(df_seuils)
+
+# =========================
+# PAGE 4 : Drift Evidently
+# =========================
+elif menu == "🔎 Drift (Evidently)":
+    st.title("🔎 Détection de drift avec Evidently")
+    drift_report_path = os.path.join("monitoring", "reports", "drift_report.html")
+
+    if os.path.exists(drift_report_path):
+        st.components.v1.html(open(drift_report_path, "r").read(), height=800, scrolling=True)
     else:
-        st.warning("Pas de données sur les seuils de coûts.")
-
-# ===============================
-# PAGE DRIFT
-# ===============================
-elif menu == "🔍 Drift (Evidently)":
-    st.title("🔍 Monitoring Drift")
-    st.markdown("👉 Le drift est suivi via **Evidently**. Ouvre les rapports HTML générés dans `monitoring/reports/`.")
-
-
+        st.warning("⚠️ Rapport Evidently non trouvé.")

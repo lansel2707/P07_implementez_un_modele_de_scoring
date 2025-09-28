@@ -65,4 +65,9 @@ P07_model_scoring_clean/
 ---
 
 ## 🔗 Liens
-- 📂 Dépôt GitHub : [https://github.com/<ton-utilisateur>/<ton-repo>](https://github.com/<ton-utilisateur>/<ton-repo>)
+- 📂 Dépôt GitHub : https://github.com/lansel2707/P07_implementez_un_modele_de_scoring
+
+## 📌 Note
+Ce dépôt public contient tout le code et la documentation nécessaires pour reproduire le pipeline complet de scoring de crédit.  
+L'API n'est pas hébergée publiquement ; elle est conçue pour être utilisée en local.  
+Toutes les instructions de lancement sont disponibles dans ce README.
