@@ -1,90 +1,160 @@
-# api_scoring.py - version avec print des features
-import mlflow
-import mlflow.sklearn
+# api_scoring.py
+# ======================================================
+# ✅ API Scoring — Pipeline complet (on ne touche PAS Streamlit)
+# ======================================================
+
 from fastapi import FastAPI
 from pydantic import BaseModel
-import numpy as np
+import pandas as pd
+import joblib
 import json
-from typing import List
-
-# ===== Réglages MLflow =====
-MLFLOW_TRACKING_URI = "http://localhost:5000"
-MODEL_NAME = "Projet_Scoring_Best_Model"
-MODEL_STAGE = None  # None => on prend latest
+import os
 
 app = FastAPI(
-    title="API de Scoring (MLflow Registry)",
-    description="API qui interroge le modèle depuis MLflow Model Registry",
+    title="API Scoring Crédit – Gradient Boosting (Pipeline Complet)",
+    description="API FastAPI pour prédire la probabilité de défaut client à partir du pipeline complet.",
     version="1.0.0",
 )
 
-class InputData(BaseModel):
-    data: dict  # {feature: valeur}
+# --- 🔧 Chemin du modèle (garde ton chemin actuel si déjà correct)
+MODEL_PATH = "/Users/delatouf/Documents/P07_Implementez_un_modele_de_scoring/notebooks/models/gbc_all_final_pipeline.pkl"  # <-- adapte si besoin
 
-def _get_features_from_signature(model_uri: str):
-    import mlflow.models
-    info = mlflow.models.get_model_info(model_uri)
-    if info is not None and info.signature is not None:
-        return [col.name for col in info.signature.inputs.inputs]
-    return None
+# --- (optionnel) fichier de moyennes (si tu en as exporté un depuis ton notebook)
+FEATURE_MEANS_PATH = "/Users/delatouf/Documents/P07_Implementez_un_modele_de_scoring/notebooks/models/feature_means.json"
 
-def _save_swagger_example(features, path="input_example_swagger.json"):
-    example = {"data": {feat: 0 for feat in features}}
-    with open(path, "w") as f:
-        json.dump(example, f, indent=2)
+# ======================================================
+# Chargement du modèle et préparation des features
+# ======================================================
+try:
+    model = joblib.load(MODEL_PATH)
+    print(f"✅ Modèle chargé avec succès depuis : {MODEL_PATH}")
+except Exception as e:
+    raise RuntimeError(f"❌ Erreur lors du chargement du modèle : {e}")
 
-def _load_model_and_features():
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-    if MODEL_STAGE:
-        model_uri = f"models:/{MODEL_NAME}/{MODEL_STAGE}"
-    else:
-        model_uri = f"models:/{MODEL_NAME}/latest"
+# Récupère la liste des features attendues par le pipeline
+try:
+    FEATURE_NAMES = list(model.feature_names_in_)  # sklearn >= 1.0
+except Exception:
+    # si jamais feature_names_in_ n’est pas dispo (rare), on échoue explicitement
+    raise RuntimeError("❌ Impossible d’obtenir model.feature_names_in_. Vérifie que tu charges bien le pipeline entraîné.")
 
-    model = mlflow.sklearn.load_model(model_uri)
-    feats = _get_features_from_signature(model_uri)
+# Charge un vecteur par défaut = moyennes, sinon 0
+DEFAULT_VECTOR = {f: float('nan') for f in FEATURE_NAMES}
+if os.path.exists(FEATURE_MEANS_PATH):
+    try:
+        with open(FEATURE_MEANS_PATH, "r") as f:
+            means = json.load(f)
+        # ne garder que les features présentes dans le modèle
+        DEFAULT_VECTOR.update({k: float(means.get(k, 0)) for k in FEATURE_NAMES})
+        print("ℹ️ Vecteur par défaut = MOYENNES (fichier trouvé).")
+    except Exception as e:
+        print(f"⚠️ Impossible de charger les moyennes ({e}). On utilisera 0 pour les features manquantes.")
+else:
+    print("ℹ️ Vecteur par défaut = ZÉROS (aucun fichier de moyennes trouvé).")
 
-    if feats is None and hasattr(model, "feature_names_in_"):
-        feats = list(model.feature_names_in_)
+# Affiche un gabarit JSON prêt à coller dans Swagger ("Edit Value")
+TEMPLATE_JSON = {"data": {k: DEFAULT_VECTOR[k] for k in FEATURE_NAMES}}
+print("\n================= JSON TEMPLATE (copier/coller dans Edit Value) =================")
+print(json.dumps(TEMPLATE_JSON, ensure_ascii=False, indent=2))
+print("===============================================================================\n")
+print(f"🔢 Nombre total de features : {len(FEATURE_NAMES)}")
 
-    if not feats:
-        raise RuntimeError("Impossible de déterminer la liste des features du modèle")
+# ======================================================
+# Schéma d'entrée
+# ======================================================
+class Features(BaseModel):
+    data: dict
 
-    # === AJOUT : imprimer les features au format JSON ===
-    example = {"data": {feat: 0 for feat in feats}}
-    print("\n=== Liste des features détectées ===")
-    print(json.dumps(example, indent=2))
+# ======================================================
+# Endpoint utilitaire pour récupérer le template
+# ======================================================
+@app.get("/template")
+def template():
+    """
+    Renvoie le JSON complet attendu par /predict.
+    """
+    return TEMPLATE_JSON
+# ============================
+# Fonction de normalisation des features (à insérer ici)
+# ============================
+def _normalize_for_model(feat: dict) -> dict:
+    """Accepte AGE_YEARS / EMP_YEARS (positifs) ou DAYS_* (quelque soit le signe),
+    et renvoie toujours DAYS_BIRTH / DAYS_EMPLOYED négatifs comme dans le training."""
+    out = dict(feat)
 
-    _save_swagger_example(feats)
-    return model, feats
+    # 1) Alias -> DAYS_* si AGE_YEARS / EMP_YEARS fournis (UI en années positives)
+    if "AGE_YEARS" in out and "DAYS_BIRTH" in FEATURE_NAMES:
+        try:
+            out["DAYS_BIRTH"] = -int(round(float(out["AGE_YEARS"]) * 365))
+        except Exception:
+            pass
+        out.pop("AGE_YEARS", None)
 
-MODEL, FEATURES = _load_model_and_features()
+    if "EMP_YEARS" in out and "DAYS_EMPLOYED" in FEATURE_NAMES:
+        try:
+            out["DAYS_EMPLOYED"] = -int(round(float(out["EMP_YEARS"]) * 365))
+        except Exception:
+            pass
+        out.pop("EMP_YEARS", None)
 
-@app.get("/")
-def home():
-    return {"message": "API scoring – modèle appelé depuis MLflow Registry (FastAPI)"}
+    # 2) Si on a reçu des DAYS_* positifs, force le signe négatif
+    if "DAYS_BIRTH" in out and out["DAYS_BIRTH"] is not None:
+        try:
+            out["DAYS_BIRTH"] = -abs(int(float(out["DAYS_BIRTH"])))
+        except Exception:
+            pass
 
-@app.get("/features")
-def get_features():
-    return FEATURES
+    if "DAYS_EMPLOYED" in out and out["DAYS_EMPLOYED"] is not None:
+        try:
+            out["DAYS_EMPLOYED"] = -abs(int(float(out["DAYS_EMPLOYED"])))
+        except Exception:
+            pass
 
+    return out
+# ======================================================
+# Route principale : /predict
+# ======================================================
 @app.post("/predict")
-def predict(input: InputData):
-    input_data = input.data
-    # Vérifie qu'on a toutes les features attendues
-    missing = [f for f in FEATURES if f not in input_data]
-    if missing:
+def predict(features: Features):
+    """
+    Reçoit {"data": {...}} avec (idéalement) toutes les features.
+    Remplit les features manquantes avec les valeurs par défaut (moyennes si dispo, sinon 0),
+    réordonne les colonnes, puis renvoie la prédiction + la proba de défaut.
+    """
+    try:
+        incoming = features.data or {}
+
+        # 1) Merge sur le vecteur par défaut (copy pour ne pas muter l’original)
+        merged = DEFAULT_VECTOR.copy()
+        for k, v in incoming.items():
+            # seuls les features connus sont pris en compte
+            if k in merged:
+                # cast simple -> float si possible
+                try:
+                    merged[k] = float(v)
+                except Exception:
+                    # si vraiment pas castable, on laisse la valeur telle quelle (pandas gèrera si numérique)
+                    merged[k] = v
+
+        # 2) DataFrame à une ligne + réordonnancement des colonnes
+        X_input = pd.DataFrame([merged])[FEATURE_NAMES]
+
+        # 3) Prédiction
+        proba_bad = float(model.predict_proba(X_input)[:, 1][0])
+        prediction = int(model.predict(X_input)[0])
+
+        # 4) Sortie (on garde ton nom de champ pour Streamlit)
         return {
-            "error": "Features manquantes",
-            "missing": missing,
-            "expected": FEATURES,
+            "prediction": prediction,
+            "probability_bad_payer": round(proba_bad, 6),
         }
 
-    # Ordonne et prépare l'array
-    X = np.array([input_data[f] for f in FEATURES])
-    proba = float(MODEL.predict_proba([X])[0][1])  # Classe positive = colonne 1
-    pred = int(MODEL.predict([X])[0])
+    except Exception as e:
+        return {"error": f"Erreur pendant la prédiction : {str(e)}"}
 
-    return {
-        "prediction": pred,
-        "probability_bad_payer": proba,
-    }
+# ======================================================
+# Petit endpoint de santé
+# ======================================================
+@app.get("/")
+def home():
+    return {"message": "✅ API Scoring prête. Utilisez /predict ou /template pour récupérer le JSON complet."}
