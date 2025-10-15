@@ -236,9 +236,12 @@ if IS_CLOUD:
     except Exception as e:
         st.error(f"❌ Impossible de charger le modèle : {e}")
 
+
 # ==============================
 # Lancement du scoring
 # ==============================
+submitted = st.button("🚀 Lancer le scoring")
+
 if submitted:
     payload = build_payload_from_inputs(user_inputs)
 
