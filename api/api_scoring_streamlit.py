@@ -238,7 +238,7 @@ if submitted:
     try:
         # --- Mode Cloud : prédire en local avec le .pkl ---
         if IS_CLOUD and model is not None:
-            X = pd.DataFrame([payload["data"]])[ALL_FEATURES]  # respect strict de l'ordre des features
+            X = pd.DataFrame([payload["data"]], columns=ALL_FEATURES)
             if not hasattr(model, "predict_proba"):
                 raise RuntimeError("Le modèle ne supporte pas predict_proba().")
             prob_bad = float(model.predict_proba(X)[0][1])     # proba classe 'mauvais payeur'
