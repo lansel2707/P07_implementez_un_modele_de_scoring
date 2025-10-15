@@ -106,28 +106,35 @@ def years_to_days(years: float) -> int:
 
 def build_payload_from_inputs(user_inputs: dict) -> dict:
     """
-    Construit le payload complet attendu par l’API:
-      - Remplit toutes les features de ALL_FEATURES (0 par défaut)
-      - Mappe AGE_YEARS -> DAYS_BIRTH ; EMP_YEARS -> DAYS_EMPLOYED (en jours +)
-      - Insère les 6 champs saisis sur la 1ère page
+    Construit le payload complet attendu par le modèle local ou l'API :
+    - Remplit toutes les features de ALL_FEATURES (0 par défaut)
+    - Mappe AGE_YEARS → DAYS_BIRTH et EMP_YEARS → DAYS_EMPLOYED
+    - Insère les 6 champs saisis sur la 1re page
     """
-    data = {feat: 0 for feat in ALL_FEATURES}
-
-    # Map années -> jours (positif)
+    # Conversion années -> jours (positif)
     days_birth = years_to_days(user_inputs.get("AGE_YEARS", 0))
     days_emp = years_to_days(user_inputs.get("EMP_YEARS", 0))
-    data["DAYS_BIRTH"] = days_birth
-    data["DAYS_EMPLOYED"] = days_emp
 
-    # Champs numériques directs
-    data["AMT_INCOME_TOTAL"] = float(user_inputs.get("AMT_INCOME_TOTAL", 0) or 0)
-    data["AMT_CREDIT"] = float(user_inputs.get("AMT_CREDIT", 0) or 0)
-    data["AMT_ANNUITY"] = float(user_inputs.get("AMT_ANNUITY", 0) or 0)
-    data["montant_en_retard"] = float(user_inputs.get("montant_en_retard", 0) or 0)
-    data["nb_paiements"] = int(user_inputs.get("nb_paiements", 0) or 0)
-    data["taux_refus"] = float(user_inputs.get("taux_refus", 0) or 0)
+    # Création d’un dictionnaire complet des features avec 0 par défaut
+    data_dict = {feat: 0 for feat in ALL_FEATURES}
+
+    # Mise à jour des champs saisis par l'utilisateur
+    data_dict.update({
+        "DAYS_BIRTH": days_birth,
+        "DAYS_EMPLOYED": days_emp,
+        "AMT_INCOME_TOTAL": float(user_inputs.get("AMT_INCOME_TOTAL", 0) or 0),
+        "AMT_CREDIT": float(user_inputs.get("AMT_CREDIT", 0) or 0),
+        "AMT_ANNUITY": float(user_inputs.get("AMT_ANNUITY", 0) or 0),
+        "montant_en_retard": float(user_inputs.get("montant_en_retard", 0) or 0),
+        "nb_paiements": int(user_inputs.get("nb_paiements", 0) or 0),
+        "taux_refus": float(user_inputs.get("taux_refus", 0) or 0),
+    })
+
+    # Transformation en liste ordonnée pour correspondre à ALL_FEATURES
+    data = [data_dict.get(feat, 0) for feat in ALL_FEATURES]
 
     return {"data": data}
+
 
 def plot_gauge(prob, threshold=DEFAULT_THRESHOLD):
     """Jauge accessible: vert (zone acceptée) / orange (proche seuil) / rouge (risque)"""
