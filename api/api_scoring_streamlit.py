@@ -255,30 +255,43 @@ elif menu == "📊 Feature Importance":
     st.title("📊 Importance des variables")
     st.write("Affichage des importances calculées du modèle (Top 20).")
 
-    base_dir = Path(__file__).resolve().parent.parent
-    path_importances = base_dir / "notebooks" / "exports" / "feature_importance_top20.csv"
+    import os
+    import streamlit as st
+    from pathlib import Path
+    import pandas as pd
+    import matplotlib.pyplot as plt
 
+    # ✅ Lecture du chemin depuis les secrets Streamlit si défini
+    path_importances_str = st.secrets.get("PATH_FEATURE_IMPORTANCE", "")
+    if path_importances_str and Path(path_importances_str).exists():
+        path_importances = Path(path_importances_str)
+    else:
+        # fallback local (utile pour exécution locale)
+        base_dir = Path(__file__).resolve().parent.parent
+        path_importances = base_dir / "notebooks" / "exports" / "feature_importance_top20.csv"
+
+    # Vérification et lecture
     if path_importances.exists():
         df_importances = pd.read_csv(path_importances)
-        # Harmonise colonnes -> minuscule si besoin
         df_importances.columns = [c.lower() for c in df_importances.columns]
 
         # Tri décroissant et top 20
         df_top = df_importances.sort_values(by="importance", ascending=False).head(20)
 
-        # Histogramme VERTICAL décroissant
-        fig, ax = accessible_fig(figsize=(10, 5))
+        # Histogramme vertical
+        fig, ax = plt.subplots(figsize=(10, 5))
         ax.bar(df_top["feature"], df_top["importance"])
         ax.set_xlabel("Feature")
         ax.set_ylabel("Importance")
-        ax.set_title("Top 20 Feature Importances – Gradient Boosting (All Features)")
         plt.xticks(rotation=80, ha="right")
         st.pyplot(fig)
 
-        # (Optionnel) table compacte
+        # Tableau compact
         st.dataframe(df_top.reset_index(drop=True), use_container_width=True)
+
     else:
         st.warning(f"⚠️ Fichier des importances non trouvé : {path_importances}")
+
 
 # ============================================================
 # PAGE 3 : Comparaison Client vs Population (alignée équilibrée)
