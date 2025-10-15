@@ -11,6 +11,12 @@ from pathlib import Path
 # (Optionnel pour la jauge accessible)
 import plotly.graph_objects as go
 
+import joblib
+
+# Pour distinguer mode cloud / local
+IS_CLOUD = os.getenv("RUN_MODE", "local") == "cloud"
+
+
 # =========================
 # CONFIG APP
 # =========================
@@ -201,50 +207,80 @@ if menu == "👨‍💼 Scoring Client":
 
         submitted = st.form_submit_button("🚀 Lancer le scoring")
 
-    if submitted:
-        payload = build_payload_from_inputs(user_inputs)
-        try:
-            response = requests.post(f"{BASE_URL}/predict?threshold={DEFAULT_THRESHOLD}", json=payload)
+# ==============================
+# Chargement du modèle (Cloud)
+# ==============================
+model_path = Path(__file__).resolve().parent.parent / "streamlit_exports" / "gbc_all_final_pipeline.pkl"
+
+model = None
+if IS_CLOUD:
+    try:
+        model = joblib.load(model_path)
+        st.success(f"✅ Modèle chargé depuis {model_path.name}")
+    except Exception as e:
+        st.error(f"❌ Impossible de charger le modèle : {e}")
+
+# ==============================
+# Lancement du scoring
+# ==============================
+if submitted:
+    payload = build_payload_from_inputs(user_inputs)
+
+    try:
+        # --- Mode Cloud : prédire en local avec le .pkl ---
+        if IS_CLOUD and model is not None:
+            X = pd.DataFrame([payload["data"]])[ALL_FEATURES]  # respect strict de l'ordre des features
+            if not hasattr(model, "predict_proba"):
+                raise RuntimeError("Le modèle ne supporte pas predict_proba().")
+            prob_bad = float(model.predict_proba(X)[0][1])     # proba classe 'mauvais payeur'
+            result = {"probability_bad_payer": prob_bad}
+            st.success("✅ Résultat calculé côté app (mode Cloud)")
+
+        # --- Mode local : appeler l'API FastAPI ---
+        else:
+            response = requests.post(
+                f"{BASE_URL}/predict?threshold={DEFAULT_THRESHOLD}",
+                json=payload,
+                timeout=15
+            )
             if response.status_code == 200:
                 result = response.json()
                 st.success("✅ Résultat reçu depuis l'API")
-
-                # --- Contenu principal du résultat ---
-                prob_bad = float(result.get("probability_bad_payer", result.get("probability", 0.0)))
-
-                # Conversion pour affichage : on veut la probabilité d’un bon payeur
-                prob_good = 1 - prob_bad
-
-                # Seuil métier affiché pour les bons payeurs (0.14 pour mauvais → 0.86 pour bons)
-                seuil = 1 - DEFAULT_THRESHOLD
-
-                # --- Jauge avec seuil métier ---
-                plot_gauge(prob_good, threshold=seuil)
-
-
-                # --- Interprétation lisible du score ---
-                if prob_good >= seuil:
-                    message = "🟢 Bon payeur probable (faible risque)"
-                    color = "#4CAF50"  # vert
-                elif prob_good >= 0.5:
-                    message = "🟠 Zone limite : à surveiller"
-                    color = "#FFC107"  # orange
-                else:
-                    message = "🔴 Mauvais payeur probable (risque élevé)"
-                    color = "#F44336"  # rouge
-
-
-                # Affichage du message interprété
-                st.markdown(
-                    f"<h2 style='text-align:center; color:{color};'>{message}</h2>",
-                    unsafe_allow_html=True
-                )
-
             else:
                 st.error(f"⚠️ Erreur API {response.status_code} : {response.text}")
-        except Exception as e:
-            st.error(f"❌ Impossible d'appeler l'API : {e}")
+                raise RuntimeError(f"API error {response.status_code}")
 
+        # --- Contenu principal du résultat ---
+        prob_bad = float(result.get("probability_bad_payer", result.get("probability", 0.0)))
+
+        # Conversion pour affichage : on veut la probabilité d’un bon payeur
+        prob_good = 1 - prob_bad
+
+        # Seuil métier affiché pour les bons payeurs (0.14 pour mauvais → 0.86 pour bons)
+        seuil = 1 - DEFAULT_THRESHOLD
+
+        # Jauge avec seuil métier
+        plot_gauge(prob_good, threshold=seuil)
+
+        # Interprétation lisible du score
+        if prob_good >= seuil:
+            message = "🟢 Bon payeur probable (faible risque)"
+            color = "#4CAF50"  # vert
+        elif prob_good >= 0.5:
+            message = "🟠 Zone limite : à surveiller"
+            color = "#FFC107"  # orange
+        else:
+            message = "🔴 Mauvais payeur probable (risque élevé)"
+            color = "#F44336"  # rouge
+
+        # Affichage du message interprété
+        st.markdown(
+            f"<h2 style='text-align:center; color:{color};'>{message}</h2>",
+            unsafe_allow_html=True
+        )
+
+    except Exception as e:
+        st.error(f"❌ Problème lors du scoring : {e}")
 
 
 
