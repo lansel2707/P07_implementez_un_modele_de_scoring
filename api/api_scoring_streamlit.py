@@ -146,36 +146,34 @@ def accessible_fig(figsize=(8,4)):
     ax.grid(alpha=0.25)
     return fig, ax
 
-# =====================
+# ==============================
 # PAGE 1 : Scoring
-# =====================
-if menu == "👨‍💼 Scoring Client":
-    st.title("🧮 Application de Scoring Client")
+# ==============================
+if menu == "🧑‍💻 Scoring Client":
+    st.title("📊 Application de Scoring Client")
     st.write("Entrez les informations principales du client pour obtenir un score de risque.")
 
+    # --- Formulaire avec bouton DANS le form (sinon Streamlit met un warning) ---
     with st.form("form_scoring"):
         cols = st.columns(2)
         user_inputs = {}
 
-        # Bornes et validations (cohérentes avec ce que tu as demandé)
         with cols[0]:
             user_inputs["AMT_INCOME_TOTAL"] = st.number_input(
                 FEATURE_LABELS["AMT_INCOME_TOTAL"], min_value=0.0, max_value=5_000_000.0,
                 value=0.0, step=1000.0, format="%.2f"
             )
-
             user_inputs["AMT_ANNUITY"] = st.number_input(
                 FEATURE_LABELS["AMT_ANNUITY"], min_value=0.0, max_value=500_000.0,
                 value=0.0, step=100.0, format="%.2f"
             )
-
             user_inputs["EMP_YEARS"] = st.number_input(
                 FEATURE_LABELS["EMP_YEARS"], min_value=0.0, max_value=50.0,
                 value=0.0, step=0.5, format="%.1f"
             )
-
             user_inputs["nb_paiements"] = st.number_input(
-                FEATURE_LABELS["nb_paiements"], min_value=0, max_value=300, value=0, step=1
+                FEATURE_LABELS["nb_paiements"], min_value=0, max_value=300,
+                value=0, step=1
             )
 
         with cols[1]:
@@ -183,100 +181,87 @@ if menu == "👨‍💼 Scoring Client":
                 FEATURE_LABELS["AMT_CREDIT"], min_value=0.0, max_value=2_000_000.0,
                 value=0.0, step=1000.0, format="%.2f"
             )
-
             user_inputs["AGE_YEARS"] = st.number_input(
                 FEATURE_LABELS["AGE_YEARS"], min_value=18.0, max_value=100.0,
                 value=30.0, step=1.0, format="%.0f"
             )
-
             user_inputs["montant_en_retard"] = st.number_input(
                 FEATURE_LABELS["montant_en_retard"], min_value=0.0, max_value=2_000_000.0,
                 value=0.0, step=100.0, format="%.2f"
             )
-
             user_inputs["taux_refus"] = st.number_input(
                 FEATURE_LABELS["taux_refus"], min_value=0.0, max_value=1.0,
                 value=0.0, step=0.01, format="%.2f"
             )
 
+        submitted = st.form_submit_button("🚀 Lancer le scoring")
 
-# ==============================
-# Chargement du modèle (Cloud)
-# ==============================
-model_path = Path(__file__).resolve().parent.parent / "streamlit_exports" / "gbc_all_final_pipeline.pkl"
+    # --- Chargement du modèle Cloud (garde le message ici pour éviter les bandeaux partout) ---
+    model_path = Path(__file__).resolve().parent.parent / "streamlit_exports" / "gbc_all_final_pipeline.pkl"
+    model = None
+    if IS_CLOUD:
+        try:
+            model = joblib.load(model_path)
+            st.success(f"✅ Modèle chargé depuis {model_path.name}")
+        except Exception as e:
+            st.error(f"❌ Impossible de charger le modèle : {e}")
 
-model = None
-if IS_CLOUD:
-    try:
-        model = joblib.load(model_path)
-        st.success(f"✅ Modèle chargé depuis {model_path.name}")
-    except Exception as e:
-        st.error(f"❌ Impossible de charger le modèle : {e}")
+    # ==============================
+    # Lancement du scoring (après submit)
+    # ==============================
+    if submitted:
+        payload = build_payload_from_inputs(user_inputs)
+        try:
+            # --- Mode Cloud : prédire en local avec le .pkl ---
+            if IS_CLOUD and model is not None:
+                X = pd.DataFrame([payload["data"]], columns=ALL_FEATURES)
+                if not hasattr(model, "predict_proba"):
+                    raise RuntimeError("Le modèle ne supporte pas predict_proba().")
+                prob_bad = float(model.predict_proba(X)[0][1])  # proba 'mauvais payeur'
+                result = {"probability_bad_payer": prob_bad}
+                st.success("✅ Résultat calculé côté app (mode Cloud)")
 
-
-# ==============================
-# Lancement du scoring
-# ==============================
-submitted = st.button("🚀 Lancer le scoring")
-
-if submitted:
-    payload = build_payload_from_inputs(user_inputs)
-
-    try:
-        # --- Mode Cloud : prédire en local avec le .pkl ---
-        if IS_CLOUD and model is not None:
-            X = pd.DataFrame([payload["data"]], columns=ALL_FEATURES)
-            if not hasattr(model, "predict_proba"):
-                raise RuntimeError("Le modèle ne supporte pas predict_proba().")
-            prob_bad = float(model.predict_proba(X)[0][1])     # proba classe 'mauvais payeur'
-            result = {"probability_bad_payer": prob_bad}
-            st.success("✅ Résultat calculé côté app (mode Cloud)")
-
-        # --- Mode local : appeler l'API FastAPI ---
-        else:
-            response = requests.post(
-                f"{BASE_URL}/predict?threshold={DEFAULT_THRESHOLD}",
-                json=payload,
-                timeout=15
-            )
-            if response.status_code == 200:
-                result = response.json()
-                st.success("✅ Résultat reçu depuis l'API")
+            # --- Mode local (si tu gardes l'API FastAPI) ---
             else:
-                st.error(f"⚠️ Erreur API {response.status_code} : {response.text}")
-                raise RuntimeError(f"API error {response.status_code}")
+                response = requests.post(
+                    f"{BASE_URL}/predict?threshold={DEFAULT_THRESHOLD}",
+                    json=payload,
+                    timeout=15
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    st.success("✅ Résultat reçu depuis l'API")
+                else:
+                    st.error(f"⚠️ Erreur API {response.status_code} : {response.text}")
+                    raise RuntimeError(f"API error {response.status_code}")
 
-        # --- Contenu principal du résultat ---
-        prob_bad = float(result.get("probability_bad_payer", result.get("probability", 0.0)))
+            # ---- Contenu principal du résultat ----
+            prob_bad = float(result.get("probability_bad_payer", result.get("probability", 0.0)))
+            prob_good = 1 - prob_bad
+            seuil = 1 - DEFAULT_THRESHOLD
 
-        # Conversion pour affichage : on veut la probabilité d’un bon payeur
-        prob_good = 1 - prob_bad
+            # ---- Jauge ----
+            plot_gauge(prob_good, threshold=seuil)
 
-        # Seuil métier affiché pour les bons payeurs (0.14 pour mauvais → 0.86 pour bons)
-        seuil = 1 - DEFAULT_THRESHOLD
+            # ---- Message lisible ----
+            if prob_good >= seuil:
+                message = "🟢 Bon payeur probable (faible risque)"
+                color = "#4CAF50"
+            elif prob_good >= 0.5:
+                message = "🟠 Zone limite : à surveiller"
+                color = "#FFC107"
+            else:
+                message = "🔴 Mauvais payeur probable (risque élevé)"
+                color = "#F44336"
 
-        # Jauge avec seuil métier
-        plot_gauge(prob_good, threshold=seuil)
+            st.markdown(
+                f"<h2 style='text-align:center; color:{color};'>{message}</h2>",
+                unsafe_allow_html=True
+            )
 
-        # Interprétation lisible du score
-        if prob_good >= seuil:
-            message = "🟢 Bon payeur probable (faible risque)"
-            color = "#4CAF50"  # vert
-        elif prob_good >= 0.5:
-            message = "🟠 Zone limite : à surveiller"
-            color = "#FFC107"  # orange
-        else:
-            message = "🔴 Mauvais payeur probable (risque élevé)"
-            color = "#F44336"  # rouge
+        except Exception as e:
+            st.error(f"❌ Problème lors du scoring : {e}")
 
-        # Affichage du message interprété
-        st.markdown(
-            f"<h2 style='text-align:center; color:{color};'>{message}</h2>",
-            unsafe_allow_html=True
-        )
-
-    except Exception as e:
-        st.error(f"❌ Problème lors du scoring : {e}")
 
 
 
