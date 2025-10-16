@@ -44,25 +44,22 @@ FEATURE_LABELS = {
 
 IMPORTANT_FEATURES = list(FEATURE_LABELS.keys())
 
-# ============================================================
-# 📦 Chargement automatique de la liste des features utilisées par le modèle
-# ============================================================
-
+# === Chargement silencieux de la liste des features utilisées par le modèle ===
 import json
 from pathlib import Path
+import streamlit as st
 
-try:
-    # Localisation du fichier contenant la liste des features
-    features_path = Path(__file__).resolve().parent.parent / "streamlit_exports" / "all_features.json"
-    
-    with open(features_path, "r") as f:
-        ALL_FEATURES = json.load(f)
-    
-    st.success(f"✅ Liste des features chargée ({len(ALL_FEATURES)} colonnes)")
-except Exception as e:
-    st.error(f"❌ Erreur lors du chargement de la liste des features : {e}")
-    ALL_FEATURES = []
+@st.cache_resource(show_spinner=False)
+def load_feature_list() -> list[str]:
+    path = Path(__file__).resolve().parent.parent / "streamlit_exports" / "all_features.json"
+    with path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    # petite validation
+    if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
+        raise ValueError("all_features.json invalide : on attend une liste de strings.")
+    return data
 
+ALL_FEATURES = load_feature_list()
 
 # =========================
 # MENU
