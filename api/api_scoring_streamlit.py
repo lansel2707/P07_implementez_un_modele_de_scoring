@@ -149,11 +149,10 @@ def accessible_fig(figsize=(8,4)):
 # ==============================
 # PAGE 1 : Scoring
 # ==============================
-if menu == "🧑‍💻 Scoring Client":
-    st.title("📊 Application de Scoring Client")
+if menu == "👨‍💼 Scoring Client":
+    st.title("📝 Application de Scoring Client")
     st.write("Entrez les informations principales du client pour obtenir un score de risque.")
 
-    # --- Formulaire avec bouton DANS le form (sinon Streamlit met un warning) ---
     with st.form("form_scoring"):
         cols = st.columns(2)
         user_inputs = {}
@@ -194,35 +193,36 @@ if menu == "🧑‍💻 Scoring Client":
                 value=0.0, step=0.01, format="%.2f"
             )
 
+        # >>>>>>>>>>>>>>>>>>>>> IMPORTANT : le bouton doit rester DANS le with st.form <<<<<<<<<<<<<<<<<<<<<<
         submitted = st.form_submit_button("🚀 Lancer le scoring")
 
-    # --- Chargement du modèle Cloud (garde le message ici pour éviter les bandeaux partout) ---
+    # ----- Chargement du modèle uniquement sur la page 1 (et après le formulaire) -----
     model_path = Path(__file__).resolve().parent.parent / "streamlit_exports" / "gbc_all_final_pipeline.pkl"
     model = None
-    if IS_CLOUD:
-        try:
-            model = joblib.load(model_path)
-            st.success(f"✅ Modèle chargé depuis {model_path.name}")
-        except Exception as e:
-            st.error(f"❌ Impossible de charger le modèle : {e}")
+    try:
+        model = joblib.load(model_path)
+        # Si tu veux voir ce bandeau seulement ici :
+        # st.success(f"✅ Modèle chargé depuis {model_path.name}")
+    except Exception as e:
+        st.error(f"❌ Impossible de charger le modèle : {e}")
 
-    # ==============================
-    # Lancement du scoring (après submit)
-    # ==============================
+    # ----- Lancement du scoring après submit -----
     if submitted:
-        payload = build_payload_from_inputs(user_inputs)
         try:
-            # --- Mode Cloud : prédire en local avec le .pkl ---
-            if IS_CLOUD and model is not None:
-                X = pd.DataFrame([payload["data"]], columns=ALL_FEATURES)
+            payload = build_payload_from_inputs(user_inputs)
+
+            # Mode Cloud : prédire en local avec le .pkl
+            if (model is not None) and (len(ALL_FEATURES) > 0):
+                import pandas as pd
                 if not hasattr(model, "predict_proba"):
                     raise RuntimeError("Le modèle ne supporte pas predict_proba().")
-                prob_bad = float(model.predict_proba(X)[0][1])  # proba 'mauvais payeur'
+                X = pd.DataFrame([payload["data"]], columns=ALL_FEATURES)
+                prob_bad = float(model.predict_proba(X)[0][1])
                 result = {"probability_bad_payer": prob_bad}
-                st.success("✅ Résultat calculé côté app (mode Cloud)")
+                # st.success("✅ Résultat calculé côté app (mode Cloud)")
 
-            # --- Mode local (si tu gardes l'API FastAPI) ---
             else:
+                # (optionnel) Appel FastAPI si tu souhaites garder le mode API
                 response = requests.post(
                     f"{BASE_URL}/predict?threshold={DEFAULT_THRESHOLD}",
                     json=payload,
@@ -230,20 +230,18 @@ if menu == "🧑‍💻 Scoring Client":
                 )
                 if response.status_code == 200:
                     result = response.json()
-                    st.success("✅ Résultat reçu depuis l'API")
+                    # st.success("✅ Résultat reçu depuis l'API")
                 else:
-                    st.error(f"⚠️ Erreur API {response.status_code} : {response.text}")
+                    st.error(f"❌ Erreur API {response.status_code} : {response.text}")
                     raise RuntimeError(f"API error {response.status_code}")
 
-            # ---- Contenu principal du résultat ----
+            # ----- Affichage résultat -----
             prob_bad = float(result.get("probability_bad_payer", result.get("probability", 0.0)))
             prob_good = 1 - prob_bad
             seuil = 1 - DEFAULT_THRESHOLD
 
-            # ---- Jauge ----
             plot_gauge(prob_good, threshold=seuil)
 
-            # ---- Message lisible ----
             if prob_good >= seuil:
                 message = "🟢 Bon payeur probable (faible risque)"
                 color = "#4CAF50"
@@ -254,15 +252,10 @@ if menu == "🧑‍💻 Scoring Client":
                 message = "🔴 Mauvais payeur probable (risque élevé)"
                 color = "#F44336"
 
-            st.markdown(
-                f"<h2 style='text-align:center; color:{color};'>{message}</h2>",
-                unsafe_allow_html=True
-            )
+            st.markdown(f"<h2 style='text-align:center; color:{color};'>{message}</h2>", unsafe_allow_html=True)
 
         except Exception as e:
             st.error(f"❌ Problème lors du scoring : {e}")
-
-
 
 
 # =========================
