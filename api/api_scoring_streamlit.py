@@ -44,7 +44,7 @@ FEATURE_LABELS = {
 
 IMPORTANT_FEATURES = list(FEATURE_LABELS.keys())
 
-]# ============================================================
+# ============================================================
 # 📦 Chargement automatique de la liste des features utilisées par le modèle
 # ============================================================
 
