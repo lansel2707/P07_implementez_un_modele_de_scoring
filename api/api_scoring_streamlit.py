@@ -233,17 +233,11 @@ if menu == "👨‍💼 Scoring Client":
                     st.error(f"❌ Erreur API {response.status_code} : {response.text}")
                     raise RuntimeError(f"API error {response.status_code}")
 
-            # ----- Affichage résultat -----
             # ------ Affichage résultat ------
             pred_bad = result.get("probability_bad_payer", 0.0)
             prob_bad = float(pred_bad)
 
-            # Affichage jauge inversée (risque à gauche, maîtrise à droite)
-            plot_gauge(
-                prob_bad,
-                threshold=SEUIL_DEMO,
-                invert=True
-            )
+            plot_gauge(prob_bad, threshold=SEUIL_DEMO)          
 
         except Exception as e:
             st.error(f"❌ Problème lors du scoring : {e}")
