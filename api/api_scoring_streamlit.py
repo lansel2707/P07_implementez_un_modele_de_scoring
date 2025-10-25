@@ -23,6 +23,7 @@ IS_CLOUD = os.getenv("RUN_MODE", "local") == "cloud"
 st.set_page_config(page_title="Application de Scoring", layout="wide")
 BASE_URL = "http://localhost:8000"  # API FastAPI locale
 DEFAULT_THRESHOLD = 0.14            # Seuil métier utilisé partout (cohérent avec FastAPI)
+SEUIL_DEMO = 0.05         # Seuil visuel scoring Streamlit (démo utilisateur)
 
 # =========================
 # Features principales à saisir par l’utilisateur
@@ -237,9 +238,9 @@ if menu == "👨‍💼 Scoring Client":
                 prob_bad = 1 - prob_good          # inversion nécessaire
                 seuil = 0.05                      # ✅ SEUIL DÉMO
 
-            plot_gauge(prob_bad, threshold=seuil)
+            plot_gauge(prob_bad, threshold=SEUIL_DEMO)
 
-            if prob_bad > seuil:
+            if prob_bad > SEUIL_DEMO:
                 message = "🚫 Mauvais payeur (risque élevé)"
                 color = "red"
             else:
