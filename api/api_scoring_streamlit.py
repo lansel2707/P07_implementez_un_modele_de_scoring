@@ -239,8 +239,6 @@ if menu == "👨‍💼 Scoring Client":
 
             plot_gauge(prob_bad, threshold=SEUIL_DEMO)
 
-            st.markdown(f"<h2 style='text-align:center; color:{color};'>{message}</h2>", unsafe_allow_html=True)
-
         except Exception as e:
             st.error(f"❌ Problème lors du scoring : {e}")
 
