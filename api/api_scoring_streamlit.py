@@ -239,12 +239,6 @@ if menu == "👨‍💼 Scoring Client":
 
             plot_gauge(prob_bad, threshold=SEUIL_DEMO)
 
-            if prob_bad > SEUIL_DEMO:
-                message = "🚫 Mauvais payeur (risque élevé)"
-                color = "red"
-            else:
-                message = "✅ Bon payeur (risque maîtrisé)"
-                color = "green"
             st.markdown(f"<h2 style='text-align:center; color:{color};'>{message}</h2>", unsafe_allow_html=True)
 
         except Exception as e:
