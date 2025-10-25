@@ -233,22 +233,18 @@ if menu == "👨‍💼 Scoring Client":
                     raise RuntimeError(f"API error {response.status_code}")
 
             # ----- Affichage résultat -----
-            prob_bad = float(result.get("probability_bad_payer", result.get("probability", 0.0)))
-            prob_good = 1 - prob_bad
-            seuil = 1 - DEFAULT_THRESHOLD
+                prob_good = float(pred_bad_pay)   # prob du modèle = proba bon payeur
+                prob_bad = 1 - prob_good          # inversion nécessaire
+                seuil = 0.05                      # ✅ SEUIL DÉMO
 
-            plot_gauge(prob_good, threshold=seuil)
+            plot_gauge(prob_bad, threshold=seuil)
 
-            if prob_good >= seuil:
-                message = "🟢 Bon payeur probable (faible risque)"
-                color = "#4CAF50"
-            elif prob_good >= 0.5:
-                message = "🟠 Zone limite : à surveiller"
-                color = "#FFC107"
+            if prob_bad > seuil:
+                message = "🚫 Mauvais payeur (risque élevé)"
+                color = "red"
             else:
-                message = "🔴 Mauvais payeur probable (risque élevé)"
-                color = "#F44336"
-
+                message = "✅ Bon payeur (risque maîtrisé)"
+                color = "green"
             st.markdown(f"<h2 style='text-align:center; color:{color};'>{message}</h2>", unsafe_allow_html=True)
 
         except Exception as e:
